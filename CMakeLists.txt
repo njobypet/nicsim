@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(Threads REQUIRED)
+
 option(NICSIM_BUILD_TESTS "Build unit tests" ON)
 
 add_library(nicsim_core
@@ -19,6 +21,7 @@ add_library(nicsim_core
 target_include_directories(nicsim_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+target_link_libraries(nicsim_core PUBLIC Threads::Threads)
 
 add_executable(nicsim src/main.cpp)
 target_link_libraries(nicsim PRIVATE nicsim_core)
