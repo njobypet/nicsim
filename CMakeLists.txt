@@ -16,6 +16,7 @@ add_library(nicsim_core
     src/nic_device.cpp
     src/nic_stats.cpp
     src/network_medium.cpp
+    src/tap_device.cpp
 )
 
 target_include_directories(nicsim_core PUBLIC
