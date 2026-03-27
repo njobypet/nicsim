@@ -27,6 +27,10 @@ target_link_libraries(nicsim_core PUBLIC Threads::Threads)
 add_executable(nicsim src/main.cpp)
 target_link_libraries(nicsim PRIVATE nicsim_core)
 
+if(UNIX)
+    add_executable(test_nicsim src/test_nicsim.cpp)
+endif()
+
 if(NICSIM_BUILD_TESTS)
     enable_testing()
     add_executable(nicsim_tests tests/test_main.cpp)

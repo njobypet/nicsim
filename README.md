@@ -1,6 +1,6 @@
 # nicsim — Network Interface Card Simulator
 
-A C++17 library and demo application that simulates Ethernet NIC hardware behavior, including MAC addressing, frame serialization, packet buffering, a shared network medium, and — on Linux — a **real virtual network interface** visible to `ifconfig`.
+A C++17 library that simulates Ethernet NIC hardware behavior and — on Linux — creates a **real virtual network interface** (`nicsim0`) visible to `ifconfig`. A companion `test_nicsim` CLI drives simulations against the running server.
 
 ## Features
 
@@ -9,15 +9,19 @@ A C++17 library and demo application that simulates Ethernet NIC hardware behavi
 - **Packet Buffer** with configurable capacity and drop tracking (thread-safe)
 - **NIC Device** with link up/down, transmit/receive, promiscuous mode, MTU enforcement, and per-device statistics
 - **Network Medium** connecting multiple NICs on a shared segment (hub-style broadcast)
-- **Multi-Segment Networking** — multiple independent network segments with cross-segment isolation
-- **TAP Virtual Interface** (Linux only) — creates a kernel-visible `nicsim0` interface that appears in `ifconfig` / `ip addr`
-- **Download Simulation** — injects ~10 MB/s of realistic Ethernet+IPv4+TCP traffic through the TAP interface for 60 seconds (~600 MB), with live progress reporting
+- **Multi-Segment Networking** — independent network segments with cross-segment isolation
+- **TAP Virtual Interface** (Linux) — kernel-visible `nicsim0` that appears in `ifconfig` / `ip addr`
+- **test_nicsim CLI** — sends commands to the running server:
+  - `--ping` — 10 ICMP echo replies with per-packet timing
+  - `--icmp` — inject various ICMP packet types (echo, unreachable, time-exceeded)
+  - `--download --1gb` — simulate a large file download at ~10 MB/s with live progress
+  - `--exit` — gracefully shut down the server
 
 ## Project Structure
 
 ```
 nicsim/
-├── include/nicsim/    # Public headers
+├── include/nicsim/        # Public headers
 │   ├── mac_address.h
 │   ├── ethernet_frame.h
 │   ├── packet_buffer.h
@@ -25,10 +29,13 @@ nicsim/
 │   ├── nic_stats.h
 │   ├── network_medium.h
 │   └── tap_device.h       # Linux TAP virtual interface
-├── src/               # Implementation + main
-│   ├── tap_device.cpp     # TAP device (Linux only)
+├── src/
+│   ├── main.cpp           # TAP server (Linux) / demos (other)
+│   ├── test_nicsim.cpp    # CLI client for the server
+│   ├── tap_device.cpp     # TAP device implementation
 │   └── ...
-├── tests/             # Unit tests
+├── tests/
+│   └── test_main.cpp      # Unit tests
 └── CMakeLists.txt
 ```
 
@@ -39,39 +46,79 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-## Running
+This produces three binaries:
+- `nicsim` — main server / demo application
+- `test_nicsim` — CLI client (Linux/Unix only)
+- `nicsim_tests` — unit tests
 
-### Basic demos (any platform)
+## Running on Linux / Ubuntu
 
-```bash
-./build/nicsim
-```
-
-This runs three demos:
-
-1. **Two-NIC Demo** — unicast and broadcast between two NICs on a shared segment
-2. **Packet Overflow Demo** — sends 8 frames to a NIC with a 4-frame buffer
-3. **Multi-Segment Demo** — two independent network segments with isolation verification
-
-### TAP interface + download simulation (Linux / Ubuntu)
-
-The TAP demo requires root privileges to create the virtual interface:
+### 1. Start the server
 
 ```bash
 sudo ./build/nicsim
 ```
 
-While it runs, open another terminal to watch the interface:
+The server creates the `nicsim0` TAP interface, assigns IP `10.0.100.1/24`, and waits for commands over a Unix socket. The interface stays alive as long as the server is running.
+
+Verify the interface in another terminal:
 
 ```bash
-# See nicsim0 appear with RX counters climbing in real time
-watch -n 1 ifconfig nicsim0
-
-# Or using ip:
-watch -n 1 ip -s link show nicsim0
+ifconfig nicsim0
+# or
+ip addr show nicsim0
 ```
 
-The simulation injects ~10 MB/s of traffic for 60 seconds. After it finishes, the interface is torn down automatically.
+### 2. Run simulations with test_nicsim
+
+**Simulate ping:**
+
+```bash
+./build/test_nicsim --ping
+```
+
+Output:
+
+```
+PING 203.0.113.100 via nicsim0: 56 data bytes
+98 bytes from 203.0.113.100: icmp_seq=1 ttl=64 time=0.1 ms
+98 bytes from 203.0.113.100: icmp_seq=2 ttl=64 time=0.1 ms
+...
+--- 203.0.113.100 ping statistics ---
+10 packets transmitted, 10 received, 0% packet loss
+```
+
+**Simulate ICMP traffic:**
+
+```bash
+./build/test_nicsim --icmp
+```
+
+Injects Echo Requests, Echo Replies, Destination Unreachable, and Time Exceeded packets.
+
+**Simulate a large file download:**
+
+```bash
+./build/test_nicsim --download --1gb
+./build/test_nicsim --download --500mb
+./build/test_nicsim --download --100mb
+```
+
+Injects Ethernet+IPv4+TCP frames at ~10 MB/s. Watch the RX counters climb:
+
+```bash
+watch -n 1 ifconfig nicsim0
+```
+
+**Stop the server:**
+
+```bash
+./build/test_nicsim --exit
+```
+
+### 3. Running on other platforms
+
+On non-Linux systems, `nicsim` runs the built-in userspace demos (two-NIC, packet overflow, multi-segment). The TAP and `test_nicsim` features require Linux.
 
 ### Unit tests
 
@@ -83,7 +130,7 @@ The simulation injects ~10 MB/s of traffic for 60 seconds. After it finishes, th
 
 - CMake 3.16+
 - C++17 compiler (GCC 8+, Clang 7+, MSVC 2019+)
-- **Linux** for the TAP virtual interface feature (uses `/dev/net/tun`)
+- **Linux** for the TAP virtual interface and test_nicsim (uses `/dev/net/tun`)
 - Root/sudo for creating the TAP device
 
 ## License
